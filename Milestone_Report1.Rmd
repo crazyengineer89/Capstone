@@ -1,0 +1,223 @@
+---
+title: "Milestone_Report1"
+output: html_document
+date: "2024-02-15"
+---
+
+```{r setup, include=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("C:/Users/liseth/OneDrive - IV Group/Schulungsunterlagen/Data Science Specialization/C10 Capstone Project")
+rm(list = ls())
+
+#import libraries
+library(dplyr)
+library(tm)
+library(kableExtra)
+library(wordcloud)
+library(ngram)
+library(ggplot2)
+library(stopwords)
+
+```
+
+```{r functions, echo=FALSE}
+remove_stopwords <- function(text, language = "en") {
+        # Split the text into words
+        words <- unlist(strsplit(text, "\\s+"))
+        
+        # Get stopwords for the specified language
+        sw <- stopwords::stopwords(language)
+        
+        # Remove stopwords from the list of words
+        words_clean <- words[!tolower(words) %in% sw]
+        
+        # Combine the words back into a single string
+        text_clean <- paste(words_clean, collapse = " ")
+        
+        return(text_clean)
+}
+
+
+predict_next_word <- function(previous_words, bigram_freqs, trigram_freqs, quadgram_frequs) {
+        # Convert previous_words to lowercase to match the case of the training data
+        previous_words <- tolower(previous_words)
+        split_words <- strsplit(previous_words, "[\\s\\p{P}]+", perl = TRUE)
+        
+        if (lengths(split_words) == 1) {
+                # Bigram case
+                subset <- bigram_freqs[grepl(paste("^", previous_words, sep=""), bigram_freqs$ngrams), ]
+                
+        } else if (lengths(split_words) == 2) {
+                # Trigram case
+                subset <- trigram_freqs[grepl(paste("^", previous_words, sep=""), trigram_freqs$ngrams), ]
+                
+        } else if (lengths(split_words) == 3) {
+                # Quadgram case
+                subset <- quadgram_freqs[grepl(paste("^", previous_words, sep=""), quadgram_freqs$ngrams), ]
+                
+        } else {
+                stop("Unsupported number of previous words. Support for 1 to 3 previous words only.")
+        }
+        
+        # Sort the subset by frequency to find the most likely next word
+        if (nrow(subset) > 0) {
+                subset <- subset[order(-subset$freq), ]
+                subset$ngrams[1]
+                split_ngram <- unlist(strsplit(subset$ngrams[1], "[\\s\\p{P}]+", perl = TRUE))
+                result_list <- list("success" = TRUE, "res_string" = split_ngram[length(split_ngram)])
+                return(result_list)
+        } else {
+                result_list <- list("success" = FALSE, "res_string" = previous_words)
+                return(result_list)
+        }
+}
+```
+
+```{r read_data, echo=FALSE}
+#read the data
+con_b <- file("final/en_US/en_US.blogs.txt", "r")
+con_n <- file("final/en_US/en_US.news.txt", "r")
+con_t <- file("final/en_US/en_US.twitter.txt", "r")
+
+num_lines = 5000 #change to -1L 
+
+text_data_raw_b <- readLines(con_b, n = num_lines) 
+text_data_raw_n <- readLines(con_n, n = num_lines)
+text_data_raw_t <- readLines(con_t, n = num_lines)
+
+#get some dataset stats
+col_names <- c("Blog", "News", "Twitter")
+
+df_stats <- data.frame(matrix(nrow=2, ncol = length(col_names)))
+colnames(df_stats) <- col_names
+rownames(df_stats) <- c("Number of Lines", "Number of words")
+
+df_stats$Blog[1] <- length(text_data_raw_b)
+df_stats$Blog[2] <- lengths(strsplit(paste(text_data_raw_b, collapse = ' '), ' '))
+
+df_stats$News[1] <- length(text_data_raw_n)
+df_stats$News[2] <- lengths(strsplit(paste(text_data_raw_n, collapse = ' '), ' '))
+
+df_stats$Twitter[1] <- length(text_data_raw_t)
+df_stats$Twitter[2] <- lengths(strsplit(paste(text_data_raw_t, collapse = ' '), ' '))
+```
+
+To start, I read in all the data and get an overview about the number of lines in each of the data sets and the number of words. 
+
+```{r stats, echo=FALSE}
+df_stats
+
+```
+
+```{r cleanandanalyze, echo=FALSE}
+
+
+all_text_data_raw <- c(text_data_raw_b, text_data_raw_n, text_data_raw_t)
+
+#clean data
+clean_data <- character()
+
+for (i in 1:length(all_text_data_raw)){
+        #print(text_data_raw[i])
+        preprocessed_string <- all_text_data_raw[i] %>%
+                tolower %>%
+                # gsub("[^\x01-\x7F]", "", .) %>%
+                # gsub("\\.\\.\\.", "", .) %>%
+                # gsub("\\\"", "", .) %>%
+                # gsub("\\.+\\s+", "",.) %>%
+                gsub("[[:punct:]]+", "", .) %>%
+                gsub("\\d+", "", .) %>%
+                lapply(., remove_stopwords, language = "en")
+        
+        clean_data[i] <- preprocessed_string
+        #print(preprocessed_string)
+}
+
+#split into train and val
+train_val_split <- 0.7
+no_train <- as.integer(length(clean_data)*0.7)
+
+shuffled_data <- sample(clean_data)
+
+train_data <- paste(shuffled_data[1:no_train], collapse = " ")
+val_data <- paste(shuffled_data[no_train:length(shuffled_data)], collapse = " ")
+
+#remove some data to save space
+rm(clean_data)
+rm(shuffled_data)
+rm(text_data_raw_b)
+rm(text_data_raw_n)
+rm(text_data_raw_t)
+
+unigram <- ngram(train_data, n = 1)
+bigram <- ngram(train_data, n = 2)
+trigram <- ngram(train_data, n = 3)
+quadgram <- ngram(train_data, n = 4)
+
+
+
+# Get the frequency table of n-grams
+unigram_freqs <- get.phrasetable(unigram)
+bigram_freqs <- get.phrasetable(bigram)
+trigram_freqs <- get.phrasetable(trigram)
+quadgram_freqs <- get.phrasetable(quadgram)
+
+```
+
+Next step is to clean the data, remove punctuation, emoticons, stopwords etc. 
+The resulting clean data is split into a train and test partition, so we can evaluate the model later.
+
+Now it's time to get an idea of how the train set looks like. This is done by computing ngrams, with n being 1-4. 
+
+```{r seengrams, echo=FALSE}
+# View the top n-grams by frequency
+print("Top 10 1-grams")
+head(unigram_freqs[order(-unigram_freqs$freq), ], 10)
+print("Top 10 2-grams")
+head(bigram_freqs[order(-bigram_freqs$freq), ], 10)
+print("Top 10 3-grams")
+head(trigram_freqs[order(-trigram_freqs$freq), ], 10)
+print("Top 10 4-grams")
+head(quadgram_freqs[order(-quadgram_freqs$freq), ], 10)
+
+#Do some plotting
+print("Visualize the 100 words with hightes frequency")
+wordcloud(words = unigram_freqs$ngram, freq = unigram_freqs$freq, min.freq = 1,
+          max.words = 100, random.order = FALSE, colors = brewer.pal(8, "Dark2"))
+
+ordered_unigrams <- unigram_freqs[order(-unigram_freqs$freq), ]
+
+ggplot(ordered_unigrams[1:15,], aes(x = reorder(ngrams, -freq), y = freq)) +
+        geom_bar(stat = "identity") +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        labs(title = "Top Unigrams", x = "Unigram", y = "Frequency")
+
+
+```
+
+
+```{r}
+
+
+
+```
+
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
