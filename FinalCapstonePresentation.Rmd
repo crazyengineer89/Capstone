@@ -1,0 +1,31 @@
+---
+title: "Capstone Project Crystal Ball"
+author: "SomeStudent"
+date: "2024-02-16"
+output: ioslides_presentation
+---
+
+
+## About the algorithm
+
+I trained this algorithm using text data from Twitter, news portals and blogs. Those datasets combined contain more than 3.3m lines and more than 70bn words. I calculated all the so-called 3-grams, that is a set of 3 words that come directly after each other. I also calculated the frequency of all 3-grams in the data set.
+
+In a next step, I removed all 3-grams that were found less than 10 times in the data set, in order to save space and computing time.
+The remaining 3-grams were stored in a database, which now serves as a kind of look-up table to predict which word you want to use next, based on the last two words.
+
+## The App 
+
+The app, which called is called "Crystal Ball", can see the future and predict the word you are going to write next.
+
+You can find here, is very easy to use.
+<https://thecrazyengineer.shinyapps.io/cristalball/>.
+
+Just type in a sentence, press 'Predict' and wait for the crystal ball to work its magic.
+
+
+## What could be done even better?
+
+Searching the whole list of n-grams still takes time. Performance could be improved by splitting the n-gram database based on the first letter of the first word of each n-gram. This would result in 26 smaller databases for the English language. These smaller databases allow for faster searches and would therefore allow for training on even more data to achieve even better performance.
+
+## My experience with this capstone project
+I hadn't really cared about how to train an NLP until now, but I gained some really fascinating insights into the topic and my appreciation for tools like DeepL or ChatGPT grew a lot, considering the long tokens they need to use in order to provide the incredible performance.
